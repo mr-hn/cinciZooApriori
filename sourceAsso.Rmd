@@ -1,0 +1,239 @@
+---
+title: "Association Mining - A Basket Analysis of Cincinnati Zoo Eateries"
+author: Harish M
+output:
+  rmdformats::readthedown:
+    self_contained: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+    code_folding: hide
+---
+
+# Introduction
+
+Association mining is an unsupervised machine learning method for discovering hidden
+patterns and relations. It's a study of what goes with what. Having it's history in
+the retail sector, it's extensively used in market basket analysis of customer
+transactions. The recommendation systems of 
+<u><a href="http://rejoiner.com/resources/amazon-recommendations-secret-selling-online/"
+target="_blank">Amazon</a></u>, 
+<u><a href="https://www.forbes.com/sites/kashmirhill/2012/02/16/how-target-figured-out-a-teen-girl-was-pregnant-before-her-father-did/#60d85b5a6668"target="_blank">Target</a></u> and 
+<u><a href="https://medium.com/@ericboam/i-decoded-the-spotify-recommendation-algorithm-heres-what-i-found-4b0f3654035b"target="_blank">Spotify</a></u> are powered
+by association mining. They are employed in many other applications today including
+web-usage mining like Youtube and Facebok, and even in the field of bioinformatics.
+
+The Cincinnati Zoo, opened to the public in 1875, is the second oldest zoo in the
+nation. Famous for Harambe and Fiona, it serves over a million visitors each year.
+The data that we will be looking at has all purchase transactions of the eateries
+of the zoo. We will be using the `Apriori algorithm` to look for associations in customer
+buying behaviors.
+
+# Required Packages
+
+The packages listed below in the code chunk are required to replicate this document.
+```{r warning = FALSE, message = FALSE}
+library(tidyverse) # The gasoline for the CaR
+library(arules) # Association rules algorithm
+library(arulesViz) # Visualizing associations
+library(DT) # Print HTML Tables
+library(knitr) # Generating HTML document
+library(rmdformats) # Document theme
+
+# Globally controlling code blocks
+opts_chunk$set(message = FALSE, 
+               warning = FALSE, 
+               fig.align = "center",
+               fig.height = 4,
+               fig.width = 6)
+
+# DT::datatable parameters
+options(DT.options = list(paging = FALSE, # disable pagination
+                          scrollY = "200px", # enable vertical scrolling
+                          scrollX = TRUE, # enable horizontal scrolling
+                          scrollCollapse = TRUE,
+                          ordering = FALSE, # disable sorting data
+                          dom = "t"))  # display just the table
+```
+
+# Data Exploration
+
+```{r echo = FALSE}
+data <- read_csv("files/cinci_zoo_purchases.csv")
+```
+
+The data has `r nrow(data)` rows and `r ncol(data)` columns. Each row represents
+a purchase and the columns of the data are the items a customer can buy. The
+items purchased during the transactio is marked 1 for the column and all other
+entries are zero. A sample of the data is printed below.
+
+```{r}
+data <- read_csv("files/cinci_zoo_purchases.csv")
+
+# There's a "Food" at the end of each column name. Removing it
+colnames(data) <- gsub("Food", "", colnames(data))
+
+# Dropping the transaction ID
+data <- data[, -1]
+
+# Find out elements that are not equal to 0 or 1 and change them to 1.
+other_vals <- which(!(as.matrix(data) == 1 | as.matrix(data) == 0), arr.ind = TRUE )
+data[other_vals] <- 1
+
+data %>% tail(5) %>% datatable(caption = "Sample of the purchase data")
+```
+
+A chart of top selling items is presented below.
+```{r fig.height=3, fig.width=5}
+theme_hn <- theme_light() +  theme(panel.grid.minor.x = element_blank(),
+                                   panel.grid.major.y = element_blank(),
+                                   panel.background = element_rect(fill = "#fcfcfc"),
+                                   plot.background = element_rect(fill = "#fcfcfc"),
+                                   panel.border = element_blank()) 
+
+data %>% colSums() %>% as.data.frame() %>% rownames_to_column("Items") %>% 
+  rename("Count" = ".") %>% arrange(desc(Count)) %>% head(10) %>% 
+  ggplot(aes(reorder(Items, Count), Count)) + geom_col(fill = "#9f2142", width = 0.7) + 
+  coord_flip() + xlab("") + theme_hn
+```
+
+All the `0`'s in the dataset do not hold information and therefore, the data
+is converted into a sparse matrix where the zeroes are not recorded. The R 
+implementation of the Apriori model that we will be applying expects the data in
+this format. The sparse version of the same five rows from the above table are 
+printed again. 
+
+```{r}
+# Change to sparse version
+data <- as(as.matrix(data), "transactions")
+
+as(data, "data.frame") %>% tail(5) %>% datatable(caption = "Sparse version of the data")
+```
+
+# Association Basics
+
+In association mining, the observed patterns are expressed in terms of `rules.` 
+A rule is a set of events occurring together frequently. In our case, it's a 
+notation of items bought together. If items on the Left-Hand-Side are purchased, 
+then there is a chance that the items on the Right-Hand-Side would also
+be bought along.
+
+<center>$$ \{item_a\ item_b\} => \{item_x \ item_y\}$$</center>
+
+In theory, if all items are considered, there could be exponentially many rules.
+Measuring the strength of each rule becomes essential to keep that in check. There
+are three main parameters.
+
+* `Support` - Percentage of purchases that contain all of the items on the LHS and RHS.
+It's a measure of how frequently the items are bought together.
+
+<center>$$ \frac{number\ of\ purchases\ with\ items\ \{a, b, x, y\}}{number\ of\ purchases} $$</center>
+
+* `Confidence` - This measures the reliability of the rule - how often it was 
+found to be true. It's the conditional probability of items on the RHS purchased, 
+given items on the LHS were also purchased.
+
+<center>$$ \frac{number\ of\ purchases\ with\ items\ \{a, b, x, y\}}{number\ of\ purchases\ with\ items\ \{a, b\}} $$</center>
+
+
+* `Lift` - This is a measure of independance of the events on the LHS and RHS. A
+value equal to 1 indicates they are completely independant, while a value greater
+than 1 indicates the opposite. A value less than 1, however, means that the items
+are substitutes; that is, items on the LHS have a negative effect on the
+purchase of items on the RHS.
+
+<center>$$ \frac{number\ of\ purchases\ with\ items\ \{a, b, x, y\}}{number\ of\ purchases\ with\ items\ \{a, b\} * number\ of\ purchases\ with\ items\ \{x, y\}} $$</center>
+
+# Preliminary Analysis
+
+Apriori algorithm is the most commonly used algorithm for assotiation mining we 
+apply it to the data, setting the minimum support and confidence at 0.003 and 
+0.5 respectievly. This means that only items that have been purchased at least
+3 times every thousand purchases are considered for analysis.
+```{r}
+basket_rules <- apriori(data, parameter = list(sup = 0.003, conf = 0.5, 
+                                               target = "rules"),
+                        control = list(verbose = FALSE)) # Prevent output print
+```
+
+The algorithm comes up with `r length(basket_rules)` rules. They are printed in
+the decreasing order of count.
+
+```{r}
+as(basket_rules, "data.frame") %>% arrange(desc(count)) %>%
+  mutate(support = round(support, 4),
+         confidence = round(confidence, 4),
+         lift = round(lift, 4)) %>% 
+  datatable(caption = "Rules of Association",
+            options = list(ordering = TRUE))
+```
+
+The support of 0.0286 for the first rule indicates that ~3% of the purchases 
+included Topping and Ice Cream Cone together. An extremly high confidence of 0.998
+indicates that 99.8% of the time someone ordered Toppings, an Ice Cream Cone was
+also purchased along with it. Couldn't tell what the other 0.2% ordered toppings 
+for. A lift much larger than 1 indicates positive correlation.
+
+Rule number 5 {Hot Chocolate Souvenir Refill} => {Hot Chocolate Souvenir} looks
+interesting with a confidence of 55.8%. For every 100 refills, only ~56 hot
+chocolates were purchased. This could mean that people went for multiple refills.
+
+All the rules are visualized through the interactive chart below.
+```{r}
+plot(basket_rules, method = "graph",  engine = "htmlwidget")
+```
+
+
+<!-- ```{r} -->
+<!-- # Size is the number of items on lhs and rhs -->
+<!-- # Below, looking only at more 'complex' relations -->
+<!-- subset(basket_rules, size(basket_rules) > 4) %>% inspect() -->
+
+<!-- subset(basket_rules, lift > 5) %>% inspect() -->
+<!-- # These are all basically rules to evaluate the 'association' rules -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- # Now find the subset rules that has Yogurt in the right hand side. -->
+<!-- # Who is buying yogurt? Requring the lift to be above 3.5 to be more sure about results -->
+<!-- #### subset(basket_rules, subset = rhs %in% "yogurt" & lift > 3.5) %>% inspect() -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- # What else to suggest to meat buyers? -->
+<!-- #### subset(basket_rules, subset = lhs %in% "meat" & lift > 1.5) %>% inspect() -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- plot(basket_rules) -->
+<!-- plot(basket_rules, method = "graph") -->
+<!-- # Top 10 sorted by lift -->
+<!-- plot(head(sort(basket_rules, by = "lift"), 5), method = "graph") -->
+<!-- plot(basket_rules, method = "grouped") -->
+<!-- plot(basket_rules, method = "graph",  engine = "htmlwidget") -->
+<!-- # head(sort(basket_rules, by = "lift"), 5) %>% inspect() -->
+<!-- ``` -->
+
+# Shiny App
+
+<!-- <iframe style="position: absolute; height: 100%; border: none"></iframe> -->
+
+ Association Rules often result in an “overflow” of rules
+ The number can be reduced through careful selection:  Exclude non-informative and/or trivial rules
+ Exclude rules that share the same support
+ Rare combinations tend to be ignored because they do not meet the minimum support requirement
+ Include (if possible) items that are approximately equally frequent in the data
+ This can be achieved by using higher level hierarchies as the items
+
+<iframe src ="https://gallery.shinyapps.io/087-crandash/" height=800px width="100%" />
+
+
+<!-- <u><a href="https://www.linkedin.com/in/harish-morekonda/"target="_blank">LinkedIn</a></u> -->
+
+<!-- Here's a link to the repository - <u><a href="https://github.com/mr-hn/cinciZooApriori"target="_blank"> -->
+<!-- GitHub</a></u> -->
+
+
+
