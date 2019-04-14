@@ -80,7 +80,7 @@ data <- data[, -1]
 other_vals <- which(!(as.matrix(data) == 1 | as.matrix(data) == 0), arr.ind = TRUE )
 data[other_vals] <- 1
 
-data %>% tail(5) %>% datatable(caption = "Sample of the purchase data")
+data %>% head(5) %>% datatable(caption = "Sample of the purchase data")
 ```
 
 A chart of top selling items is presented below.
@@ -107,7 +107,7 @@ printed again.
 # Change to sparse version
 data <- as(as.matrix(data), "transactions")
 
-as(data, "data.frame") %>% tail(5) %>% datatable(caption = "Sparse version of the data")
+as(data, "data.frame") %>% head(5) %>% datatable(caption = "Sparse version of the data")
 ```
 
 # Association Basics
@@ -178,62 +178,15 @@ Rule number 5 {Hot Chocolate Souvenir Refill} => {Hot Chocolate Souvenir} looks
 interesting with a confidence of 55.8%. For every 100 refills, only ~56 hot
 chocolates were purchased. This could mean that people went for multiple refills.
 
-All the rules are visualized through the interactive chart below.
-```{r}
-plot(basket_rules, method = "graph",  engine = "htmlwidget")
-```
-
-
-<!-- ```{r} -->
-<!-- # Size is the number of items on lhs and rhs -->
-<!-- # Below, looking only at more 'complex' relations -->
-<!-- subset(basket_rules, size(basket_rules) > 4) %>% inspect() -->
-
-<!-- subset(basket_rules, lift > 5) %>% inspect() -->
-<!-- # These are all basically rules to evaluate the 'association' rules -->
-<!-- ``` -->
-
-
-<!-- ```{r} -->
-<!-- # Now find the subset rules that has Yogurt in the right hand side. -->
-<!-- # Who is buying yogurt? Requring the lift to be above 3.5 to be more sure about results -->
-<!-- #### subset(basket_rules, subset = rhs %in% "yogurt" & lift > 3.5) %>% inspect() -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- # What else to suggest to meat buyers? -->
-<!-- #### subset(basket_rules, subset = lhs %in% "meat" & lift > 1.5) %>% inspect() -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-
-<!-- plot(basket_rules) -->
-<!-- plot(basket_rules, method = "graph") -->
-<!-- # Top 10 sorted by lift -->
-<!-- plot(head(sort(basket_rules, by = "lift"), 5), method = "graph") -->
-<!-- plot(basket_rules, method = "grouped") -->
-<!-- plot(basket_rules, method = "graph",  engine = "htmlwidget") -->
-<!-- # head(sort(basket_rules, by = "lift"), 5) %>% inspect() -->
-<!-- ``` -->
-
 # Shiny App
 
-<!-- <iframe style="position: absolute; height: 100%; border: none"></iframe> -->
+```{r}
+# As on 04/14/2019 deploy to shinyapps.io requires MASS version 7.3.51.1
+# url <- "https://cran.r-project.org/src/contrib/Archive/MASS/MASS_7.3-51.1.tar.gz"
+# install.packages(url, repos = NULL, type="source")
+```
 
- Association Rules often result in an “overflow” of rules
- The number can be reduced through careful selection:  Exclude non-informative and/or trivial rules
- Exclude rules that share the same support
- Rare combinations tend to be ignored because they do not meet the minimum support requirement
- Include (if possible) items that are approximately equally frequent in the data
- This can be achieved by using higher level hierarchies as the items
+Make use of the interactive app below to get more insight.
+Items on the LHS and RHS can be filtered through the dropdowns.
 
-<iframe src ="https://gallery.shinyapps.io/087-crandash/" height=800px width="100%" />
-
-
-<!-- <u><a href="https://www.linkedin.com/in/harish-morekonda/"target="_blank">LinkedIn</a></u> -->
-
-<!-- Here's a link to the repository - <u><a href="https://github.com/mr-hn/cinciZooApriori"target="_blank"> -->
-<!-- GitHub</a></u> -->
-
-
-
+<iframe src ="https://mr-hn.shinyapps.io/cinciZooApriori/" height=750px width="100%" />
