@@ -187,6 +187,8 @@ chocolates were purchased. This could mean that people went for multiple refills
 ```
 
 Make use of the interactive app below to get more insight.
-Items on the LHS and RHS can be filtered through the dropdowns.
+Items on the LHS and RHS can be filtered through the dropdowns. The app is being 
+sourced from <u><a href="http://mr-hn.shinyapps.io/cinciZooApriori/"
+target="_blank">shinyapps.io</a></u>
 
 <iframe src ="https://mr-hn.shinyapps.io/cinciZooApriori/" height=750px width="100%" />
